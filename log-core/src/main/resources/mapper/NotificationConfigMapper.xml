@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hj.log.mapper.NotificationConfigMapper">
+
+    <resultMap id="NotificationConfigResultMap" type="com.hj.log.domain.NotificationConfig">
+        <id property="id" column="id"/>
+        <result property="configName" column="config_name"/>
+        <result property="channelType" column="channel_type"/>
+        <result property="configData" column="config_data"/>
+        <result property="enabled" column="enabled"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hj.log.domain.NotificationConfig">
+        INSERT INTO area_notification_config (
+            id,
+            config_name,
+            channel_type,
+            config_data,
+            enabled
+        ) VALUES (
+            #{id},
+            #{configName},
+            #{channelType},
+            CAST(#{configData} AS JSON),
+            #{enabled}
+        )
+    </insert>
+
+    <select id="selectById" resultMap="NotificationConfigResultMap">
+        SELECT
+            id,
+            config_name,
+            channel_type,
+            config_data,
+            enabled
+        FROM area_notification_config
+        WHERE id = #{id}
+    </select>
+</mapper>

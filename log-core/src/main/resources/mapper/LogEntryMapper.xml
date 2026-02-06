@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hj.log.mapper.LogEntryMapper">
+
+    <resultMap id="LogEntryResultMap" type="com.hj.log.domain.LogEntry">
+        <id property="id" column="id"/>
+        <result property="serviceName" column="service_name"/>
+        <result property="logLevel" column="log_level"/>
+        <result property="timestamp" column="timestamp"/>
+        <result property="message" column="message"/>
+        <result property="loggerName" column="logger_name"/>
+        <result property="threadName" column="thread_name"/>
+        <result property="stackTrace" column="stack_trace"/>
+        <result property="contextData" column="context_data"/>
+        <result property="sourceIp" column="source_ip"/>
+        <result property="traceId" column="trace_id"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hj.log.domain.LogEntry">
+        INSERT INTO area_log_entry (
+            id,
+            service_name,
+            log_level,
+            timestamp,
+            message,
+            logger_name,
+            thread_name,
+            stack_trace,
+            context_data,
+            source_ip,
+            trace_id
+        ) VALUES (
+            #{id},
+            #{serviceName},
+            #{logLevel},
+            #{timestamp},
+            #{message},
+            #{loggerName},
+            #{threadName},
+            #{stackTrace},
+            CAST(#{contextData} AS JSON),
+            #{sourceIp},
+            #{traceId}
+        )
+    </insert>
+
+    <select id="selectById" resultMap="LogEntryResultMap">
+        SELECT
+            id,
+            service_name,
+            log_level,
+            timestamp,
+            message,
+            logger_name,
+            thread_name,
+            stack_trace,
+            context_data,
+            source_ip,
+            trace_id
+        FROM area_log_entry
+        WHERE id = #{id}
+    </select>
+</mapper>

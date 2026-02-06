@@ -1,0 +1,12 @@
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/common/base/BaseController.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/common/base/BaseEntity.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/common/base/ResponseResult.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/common/exception/BusinessException.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/domain/AlertRule.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/domain/LogEntry.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/domain/LogSource.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/domain/NotificationConfig.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/mapper/AlertRuleMapper.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/mapper/LogEntryMapper.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/mapper/LogSourceMapper.java
+/Users/richardhuang/learnspace/log-platform/log-core/src/main/java/com/hj/log/mapper/NotificationConfigMapper.java
