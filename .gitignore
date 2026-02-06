@@ -1,0 +1,37 @@
+# Maven build output
+target/
+**/target/
+
+# Maven wrapper jar
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+logs/
+*.log
+*.out
+*.err
+
+# Spring Boot
+spring.log
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
