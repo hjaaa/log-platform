@@ -13,8 +13,12 @@
     <description>Log platform multi-module parent project</description>
 
     <modules>
-        <module>log-core</module>
+        <module>log-common</module>
+        <module>log-source</module>
+        <module>log-ingestion</module>
+        <module>log-query</module>
         <module>log-web</module>
+        <module>log-sdk</module>
     </modules>
 
     <properties>
@@ -59,6 +63,7 @@
                     <version>${maven-compiler-plugin.version}</version>
                     <configuration>
                         <release>${maven.compiler.release}</release>
+                        <parameters>true</parameters>
                     </configuration>
                 </plugin>
                 <plugin>

@@ -29,6 +29,11 @@ Thumbs.db
 # Environment files
 .env
 .env.*
+!.env.example
+
+# log-sdk 失败降级文件（开发期可能在仓库内出现）
+log-sdk/fallback/
+**/.log-sdk/fallback/
 
 # Temporary files
 *.tmp
