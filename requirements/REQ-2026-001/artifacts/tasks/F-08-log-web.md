@@ -1,7 +1,7 @@
 ---
 feature_id: F-08-log-web
 title: log-web · 启动入口 + 全局异常 + 配置装配
-status: pending
+status: in-progress
 type: feature
 module: log-web
 effort_pd: 1
@@ -9,6 +9,10 @@ depends_on: [F-05-log-source-ctrl, F-06-log-ingestion, F-07-log-query]
 refs:
   - artifacts/detailed-design.md#44-全局异常处理comhjlogwebhandlerglobalexceptionhandler
   - artifacts/detailed-design.md#8-部署与运行
+decisions:
+  - "只落 AdminTokenValidator；Caffeine/Async/MyBatis/DataSource 复用各 module 既有 AutoConfig + Spring Boot 默认"
+  - "logback-spring.xml 随本 feature 一起落"
+  - "OpenApiConfig 延后至 F-10"
 ---
 
 ## 背景

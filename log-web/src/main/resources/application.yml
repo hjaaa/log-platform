@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: log-platform
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      pool-name: log-platform-cp
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 3000
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  shutdown: graceful
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+log:
+  platform:
+    admin:
+      token: ${LOG_PLATFORM_ADMIN_TOKEN}
+    auth:
+      last-used:
+        cache-ttl-seconds: 60
+        cache-max-size: 200
+    retention:
+      days: 7
+      batch-size: 500
+      cron: "0 17 * * * ?"
+      batch-pause-ms: 10
+    ingestion:
+      max-batch-size: 200
+      max-message-length: 2048
+      max-stack-trace-length: 16384
+    query:
+      default-page-size: 100
+      max-page-size: 500
+      trace-default-limit: 500
+      trace-max-limit: 1000
