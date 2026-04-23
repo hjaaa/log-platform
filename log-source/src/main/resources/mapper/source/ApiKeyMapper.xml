@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hj.log.source.mapper.ApiKeyMapper">
+
+    <resultMap id="ApiKeyResultMap" type="com.hj.log.common.domain.ApiKey">
+        <id property="id" column="id"/>
+        <result property="appId" column="app_id"/>
+        <result property="keyPrefix" column="key_prefix"/>
+        <result property="keyHash" column="key_hash"/>
+        <result property="scope" column="scope"
+                javaType="com.hj.log.common.enums.Scope"
+                typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result property="label" column="label"/>
+        <result property="status" column="status"
+                javaType="com.hj.log.common.enums.KeyStatus"
+                typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result property="lastUsedAt" column="last_used_at"/>
+        <result property="expiresAt" column="expires_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!--
+      鉴权热路径查询；命中 uk_api_key_hash 唯一索引。
+      不在此 SQL 过滤 status / expires_at —— AuthFilter 拿到记录后再判断，
+      错误码区分 AUTH_INVALID_KEY（hash 不在）vs AUTH_INVALID_KEY（已撤销/过期）便于排查。
+    -->
+    <select id="findByHash" resultMap="ApiKeyResultMap">
+        SELECT id, app_id, key_prefix, key_hash, scope, label, status,
+               last_used_at, expires_at, created_at
+          FROM api_keys
+         WHERE key_hash = #{hash}
+    </select>
+
+    <update id="touchLastUsed">
+        UPDATE api_keys
+           SET last_used_at = #{lastUsedAt}
+         WHERE id = #{id}
+    </update>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO api_keys (app_id, key_prefix, key_hash, scope, label, status, expires_at)
+        VALUES (#{appId}, #{keyPrefix}, #{keyHash}, #{scope}, #{label}, #{status}, #{expiresAt})
+    </insert>
+
+    <select id="findById" resultMap="ApiKeyResultMap">
+        SELECT id, app_id, key_prefix, key_hash, scope, label, status,
+               last_used_at, expires_at, created_at
+          FROM api_keys
+         WHERE id = #{id}
+    </select>
+
+    <select id="listByAppId" resultMap="ApiKeyResultMap">
+        SELECT id, app_id, key_prefix, key_hash, scope, label, status,
+               last_used_at, expires_at, created_at
+          FROM api_keys
+         WHERE app_id = #{appId}
+         ORDER BY id ASC
+    </select>
+
+    <update id="updateStatus">
+        UPDATE api_keys
+           SET status = #{status}
+         WHERE id = #{id}
+           AND status &lt;&gt; #{status}
+    </update>
+
+</mapper>
