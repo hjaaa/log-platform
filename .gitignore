@@ -36,6 +36,10 @@ Thumbs.db
 *.swo
 *~
 
+# Python 字节码缓存（scripts/lib 下的辅助脚本会生成）
+__pycache__/
+*.pyc
+
 # Claude Code / Agentic Engineering 本地私有文件（不提交）
 .mcp.json
 .claude/settings.local.json
