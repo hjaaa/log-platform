@@ -1,0 +1,221 @@
+{
+  "$schema": "https://schemas.team/agentic/features.v1.json",
+  "requirement_id": "REQ-2026-001",
+  "generated_at": "2026-04-23T11:25:00Z",
+  "features": [
+    {
+      "id": "F-01-archive-skeleton",
+      "title": "归档旧 log-core / log-web 骨架",
+      "description": "执行 outline-design §5.2 Commit A：git mv log-core 和 log-web 至 _archive/，从根 pom.xml <modules> 移除两条；新建 _archive/README.md 说明归档原因与 git log --follow 使用方式。校验 mvn -q -N validate 通过。",
+      "module": "skeleton",
+      "type": "chore",
+      "effort_pd": 0.5,
+      "depends_on": [],
+      "acceptance": [
+        "log-core / log-web 目录已移至 _archive/",
+        "根 pom.xml <modules> 段为空",
+        "mvn -q -N validate 退出码 0",
+        "_archive/README.md 含归档原因与 git 历史追溯命令"
+      ]
+    },
+    {
+      "id": "F-02-skeleton-6modules",
+      "title": "建立 6 module 父子 pom 骨架",
+      "description": "执行 outline-design §5.2 Commit B：创建 log-common / log-source / log-ingestion / log-query / log-web / log-sdk 六个空 module；根 pom.xml 注册（按依赖顺序）；每个 module 建标准目录树（src/main/java、src/test/java），含 .gitkeep。",
+      "module": "skeleton",
+      "type": "feature",
+      "effort_pd": 1,
+      "depends_on": ["F-01-archive-skeleton"],
+      "acceptance": [
+        "6 个新 module 目录存在，含最小 pom.xml",
+        "根 pom.xml <modules> 注册 6 个 module 且顺序合理（log-common 在前）",
+        "mvn -q -DskipTests clean compile 通过",
+        "每个 module 包结构与 outline-design §2.3 命名规范一致"
+      ]
+    },
+    {
+      "id": "F-03-log-common",
+      "title": "log-common：domain / enum / exception / context",
+      "description": "落 detailed-design §1（DDL 文件 schema.sql 与对应 DO：AppRegistration / ApiKey / LogEntry）+ enum（Scope / LogLevel / LogKind / KeyStatus / Environment）+ BusinessException + ResponseResult<T> + BaseEntity + RequestContext（包私有 set）。",
+      "module": "log-common",
+      "type": "feature",
+      "effort_pd": 1,
+      "depends_on": ["F-02-skeleton-6modules"],
+      "acceptance": [
+        "schema.sql 落 log-common/src/main/resources/db/，含 3 表完整 DDL",
+        "enum 类全集存在，命名与 detailed-design §3 / §4.2 一致",
+        "RequestContext.set 包私有；非授权调用编译失败",
+        "ResponseResult<T> 与现有约定字段一致（code/message/data）",
+        "log-common 单元测试覆盖 enum / RequestContext clear 行为"
+      ]
+    },
+    {
+      "id": "F-04-log-source-auth",
+      "title": "log-source：AuthFilter + Caffeine 节流 + RequestIdFilter",
+      "description": "落 detailed-design §4.1–§4.3 + §5.2：实现 AuthFilter（admin/api 双路径、scope 校验、常量时间比较）、Caffeine 缓存 last_used_at 节流、@Async 异步 UPDATE、RequestIdFilter（MDC 写入与清理）。说明：F-06 / F-07 在本表中通过 depends_on 指向 F-04 仅表示 PR 合入顺序与运行期 Filter 装配依赖；编译期 pom 仍只依赖 log-common（参考 outline-design §2.2）。",
+      "module": "log-source",
+      "type": "feature",
+      "effort_pd": 2,
+      "depends_on": ["F-03-log-common"],
+      "acceptance": [
+        "AuthFilter 通过单元测试覆盖：缺 token / 错 token / 错 scope / 过期 / revoked",
+        "RequestIdFilter 在 AuthFilter 之前注册",
+        "Caffeine TTL 60s、容量 200 配置项可调",
+        "异步 UPDATE 走独立线程池 size=2，业务线程不阻塞",
+        "AuthFilter 失败日志只输出 key_prefix + scope，无 hash / 明文"
+      ]
+    },
+    {
+      "id": "F-05-log-source-ctrl",
+      "title": "log-source：admin 4 个 endpoint",
+      "description": "落 detailed-design §2.2 共 4 个 endpoint（POST /apps、GET /apps、POST /apps/{id}/keys、DELETE /apps/{id}/keys/{keyId}）。Controller + Service + Mapper（XML）+ DTO 全套；签发 key 使用 SecureRandom + base32 + lpk_ 前缀；明文仅一次返回。",
+      "module": "log-source",
+      "type": "feature",
+      "effort_pd": 1,
+      "depends_on": ["F-04-log-source-auth"],
+      "acceptance": [
+        "4 endpoint 通过 MockMvc 集成测试（含错误路径 APP_CODE_DUPLICATE / KEY_NOT_FOUND）",
+        "POST /apps/{id}/keys 响应不出现 keyHash 字段",
+        "key 签发使用 SecureRandom，明文长度 ≥ 40 字符",
+        "DELETE 走逻辑撤销（status=revoked），不物理删除"
+      ]
+    },
+    {
+      "id": "F-06-log-ingestion",
+      "title": "log-ingestion：批量写入 + 保留期清理任务",
+      "description": "落 detailed-design §2.3 + §1.4：POST /api/v1/logs（@Valid 校验、DTO→DO 转换、单 SQL 多值 INSERT、部分失败响应结构）+ LogRetentionTask（@Scheduled 分批 DELETE）。",
+      "module": "log-ingestion",
+      "type": "feature",
+      "effort_pd": 2,
+      "depends_on": ["F-04-log-source-auth"],
+      "acceptance": [
+        "POST /api/v1/logs 校验全集（batch size / message blank / level / kind）通过 MockMvc 测试",
+        "部分失败时 HTTP 200 + rejected[] 准确",
+        "LogRetentionTask 单测覆盖：分批退出条件、SLEEP 调用",
+        "Mapper 多值 INSERT 走 H2 集成测试，单批 200 条耗时记录在 INFO 日志"
+      ]
+    },
+    {
+      "id": "F-07-log-query",
+      "title": "log-query：search / get / trace 三个读端点",
+      "description": "落 detailed-design §2.4：GET /api/v1/logs/search（含游标 base64 编解码、字段裁剪、appCode|traceId 二选一校验、keyword 前缀限制）+ GET /api/v1/logs/{id} + GET /api/v1/logs/trace/{traceId}。",
+      "module": "log-query",
+      "type": "feature",
+      "effort_pd": 3,
+      "depends_on": ["F-04-log-source-auth", "F-06-log-ingestion"],
+      "acceptance": [
+        "/search 通过 MockMvc 集成测试覆盖：appCode 过滤 / 多 level / 游标翻页 / 字段裁剪 / 缺过滤报 QUERY_MISSING_APP_FILTER",
+        "/logs/{id} 不存在返回 QUERY_LOG_NOT_FOUND",
+        "/trace/{id} truncated 字段在超 limit 时为 true",
+        "游标格式与 detailed-design §2.4.1 描述一致；非法游标返回 QUERY_INVALID_CURSOR"
+      ]
+    },
+    {
+      "id": "F-08-log-web",
+      "title": "log-web：启动入口 + 全局异常处理 + 配置装配",
+      "description": "落 detailed-design §4.4 + §8：LogPlatformApplication.java（@SpringBootApplication scanBasePackages='com.hj.log'）+ GlobalExceptionHandler（BusinessException / Validation / Unknown 三类）+ DataSource / MyBatis / Caffeine / OpenAPI 装配 + admin token fail-fast 校验。",
+      "module": "log-web",
+      "type": "feature",
+      "effort_pd": 1,
+      "depends_on": ["F-05-log-source-ctrl", "F-06-log-ingestion", "F-07-log-query"],
+      "acceptance": [
+        "应用可启动（mvn -pl log-web spring-boot:run）",
+        "GlobalExceptionHandler 测试覆盖三种异常路径，响应不含堆栈",
+        "缺 LOG_PLATFORM_ADMIN_TOKEN 时启动 fail-fast",
+        "Actuator /health 暴露且不需 Bearer"
+      ]
+    },
+    {
+      "id": "F-09-log-sdk",
+      "title": "log-sdk：异步缓冲 + HTTP POST + 失败降级 + replay",
+      "description": "落 detailed-design §6：LogClient 公共 API + LinkedBlockingDeque(1024) 缓冲 + FlushThread（满 100 / 每 2s）+ JDK HttpClient + 指数退避 1/2/4s ×3 + Fallback NDJSON + ReplayThread + shutdown hook + 字段截断 + fallback 磁盘上限。三条铁律：不阻塞 / 不抛异常 / 失败降级。",
+      "module": "log-sdk",
+      "type": "feature",
+      "effort_pd": 4,
+      "risk": "high",
+      "tags": ["concurrency", "io", "client-jar"],
+      "depends_on": ["F-02-skeleton-6modules"],
+      "acceptance": [
+        "MockWebServer 矩阵 6 用例（detailed-design §6.5）全绿",
+        "buffer 满时 droppedCount 递增、不抛异常",
+        "fallback 文件按小时滚动；replay 成功后删除",
+        "shutdown hook 5s 内收尾，超时则把剩余 buffer 写 fallback",
+        "API 表面零阻塞调用：write 平均耗时 < 50us（JMH 微基准记录在测试报告）"
+      ]
+    },
+    {
+      "id": "F-10-openapi-contract",
+      "title": "落地 OpenAPI v1 契约文件",
+      "description": "把 detailed-design §2 的 8 个 endpoint 完整翻译为 docs/api/v1/openapi.yaml；CI 校验该文件存在且能被 swagger-cli validate。",
+      "module": "doc",
+      "type": "doc",
+      "effort_pd": 1,
+      "depends_on": ["F-05-log-source-ctrl", "F-06-log-ingestion", "F-07-log-query"],
+      "acceptance": [
+        "docs/api/v1/openapi.yaml 存在且 swagger-cli validate 通过",
+        "8 endpoint 全部含请求体 / 响应体 / 错误码引用",
+        "ResponseResult<T> 用 components.schemas 复用",
+        "README 索引到该文件并标注消费方为 mcp-platform/mcp-log-viewer"
+      ]
+    },
+    {
+      "id": "F-11-pr-template",
+      "title": "添加跨仓 PR 模板",
+      "description": "落 detailed-design §10.1：.github/pull_request_template.md，含 REST 契约变更 checkbox。",
+      "module": "ops",
+      "type": "chore",
+      "effort_pd": 0.25,
+      "depends_on": [],
+      "acceptance": [
+        ".github/pull_request_template.md 存在",
+        "包含 REST 契约变更 checkbox 三个分支选项",
+        "新建 PR 时模板自动加载（GitHub 默认行为）"
+      ]
+    },
+    {
+      "id": "F-12-env-example",
+      "title": ".env.example + .gitignore 增补",
+      "description": "落 detailed-design §8：根目录 .env.example（含 LOG_PLATFORM_ADMIN_TOKEN / SPRING_DATASOURCE_*）+ .gitignore 加 .env / log-sdk/fallback/ / _archive/**/target/。",
+      "module": "ops",
+      "type": "chore",
+      "effort_pd": 0.25,
+      "depends_on": [],
+      "acceptance": [
+        ".env.example 存在且不含真实 secret",
+        ".gitignore 包含 .env、log-sdk/fallback/、_archive/**/target/",
+        "README 增加 'cp .env.example .env && source .env' 启动指引"
+      ]
+    },
+    {
+      "id": "F-13-claude-md-sync",
+      "title": "同步项目 CLAUDE.md 到 6 module 架构",
+      "description": "落 outline-design §6 / detailed-design 隐含的 R7 缓解：替换 context/project/log-platform/CLAUDE.md 的模块结构 / 分层约定 / 测试约定 / schema 路径，删除告警章节，新增配置项命名空间小节。独立 docs: commit。",
+      "module": "doc",
+      "type": "doc",
+      "effort_pd": 0.5,
+      "depends_on": ["F-02-skeleton-6modules"],
+      "acceptance": [
+        "context/project/log-platform/CLAUDE.md 模块结构段反映 6 module 依赖图",
+        "分层约定补 6 个包前缀映射",
+        "schema 路径改为 log-common/src/main/resources/db/schema.sql",
+        "告警规则核心字段章节删除",
+        "新增配置项命名空间小节（log.platform.* / log.sdk.*）"
+      ]
+    },
+    {
+      "id": "F-14-e2e-smoke",
+      "title": "E2E smoke 测试 + 追溯链报告",
+      "description": "落 testing 阶段需要的 artifacts/test-report.md 准备：启动 log-web，用 SDK 端到端跑通 写入→查询→trace 三步；生成 traceability 报告（需求→设计→代码→测试映射）。",
+      "module": "test",
+      "type": "test",
+      "effort_pd": 1,
+      "depends_on": ["F-08-log-web", "F-09-log-sdk"],
+      "acceptance": [
+        "smoke 测试脚本可在 CI 一键跑（含 MySQL container 启动）",
+        "测试覆盖：注册 app → 签发 write/read key → SDK 写 5 条 → search 查 5 条 → trace 拉同一 traceId 的全部 → 删除 key 后 401",
+        "追溯链报告映射：requirement.md 段落 ↔ feature_id ↔ 代码包路径 ↔ 测试类",
+        "报告落 artifacts/test-report.md"
+      ]
+    }
+  ]
+}

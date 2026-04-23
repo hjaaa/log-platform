@@ -1,17 +1,26 @@
 # ============ 流程组（bootstrap 时填） ============
 id: REQ-2026-001
 title: 日志平台骨架模块
-phase: tech-research
+phase: development
 created_at: 2026-04-23T00:00:00Z
 branch: feat/req-2026-001
 base_branch: develop
 project: log-platform
-services: []
+services:
+  - log-platform
 gates_passed:
   - phase: bootstrap
     at: '2026-04-23T07:34:43Z'
   - phase: definition
     at: '2026-04-23T08:59:34Z'
+  - phase: tech-research
+    at: '2026-04-23T09:56:07Z'
+  - phase: outline-design
+    at: '2026-04-23T11:09:19Z'
+  - phase: detail-design
+    at: '2026-04-23T11:30:00Z'
+  - phase: task-planning
+    at: '2026-04-23T11:45:00Z'
 pr_url: ""
 pr_number: 0
 
