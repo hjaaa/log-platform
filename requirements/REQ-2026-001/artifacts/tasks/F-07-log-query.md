@@ -1,11 +1,13 @@
 ---
 feature_id: F-07-log-query
 title: log-query · search / get / trace 三个读端点
-status: pending
+status: in-progress
 type: feature
 module: log-query
 effort_pd: 3
 depends_on: [F-04-log-source-auth, F-06-log-ingestion]
+created_at: 2026-04-23T11:45:00Z
+updated_at: 2026-04-23T12:30:00Z
 refs:
   - artifacts/detailed-design.md#24-查询面read-scope3-个
 ---

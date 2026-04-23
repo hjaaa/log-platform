@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hj.log.query.mapper.LogQueryMapper">
+
+    <!--
+      字段列表显式列出并以 snake_case 别名输出，依赖 mybatis 的
+      map-underscore-to-camel-case 自动映射到 LogView 的 camelCase 属性。
+      LEFT JOIN 用于带出 appCode；app_registrations 缺失时 app_code 为 null。
+    -->
+    <sql id="cols">
+        l.id AS id,
+        l.app_id AS app_id,
+        ar.code AS app_code,
+        l.log_kind AS log_kind,
+        l.level AS level,
+        l.message AS message,
+        l.stack_trace AS stack_trace,
+        l.context_data AS context_data,
+        l.trace_id AS trace_id,
+        l.span_id AS span_id,
+        l.request_id AS request_id,
+        l.logger_name AS logger_name,
+        l.thread_name AS thread_name,
+        l.source_host AS source_host,
+        l.client_ts AS client_ts,
+        l.server_ts AS server_ts
+    </sql>
+
+    <select id="search" resultType="com.hj.log.query.dto.LogView">
+        SELECT
+        <include refid="cols"/>
+        FROM logs l
+        LEFT JOIN app_registrations ar ON ar.id = l.app_id
+        <where>
+            <if test="criteria.appCode != null and criteria.appCode != ''">
+                AND ar.code = #{criteria.appCode}
+            </if>
+            <if test="criteria.traceId != null and criteria.traceId != ''">
+                AND l.trace_id = #{criteria.traceId}
+            </if>
+            <if test="criteria.kind != null">
+                AND l.log_kind = #{criteria.kind}
+            </if>
+            <if test="criteria.levels != null and criteria.levels.size() > 0">
+                AND l.level IN
+                <foreach item="lvl" collection="criteria.levels" open="(" separator="," close=")">
+                    #{lvl}
+                </foreach>
+            </if>
+            <if test="criteria.from != null">
+                AND l.server_ts &gt;= #{criteria.from}
+            </if>
+            <if test="criteria.to != null">
+                AND l.server_ts &lt; #{criteria.to}
+            </if>
+            <if test="criteria.keyword != null and criteria.keyword != ''">
+                AND l.message LIKE CONCAT(#{criteria.keyword}, '%')
+            </if>
+            <if test="criteria.requestId != null and criteria.requestId != ''">
+                AND l.request_id = #{criteria.requestId}
+            </if>
+            <if test="cursorTs != null and cursorId != null">
+                AND (l.server_ts &lt; #{cursorTs}
+                     OR (l.server_ts = #{cursorTs} AND l.id &lt; #{cursorId}))
+            </if>
+        </where>
+        ORDER BY l.server_ts DESC, l.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findById" resultType="com.hj.log.query.dto.LogView">
+        SELECT
+        <include refid="cols"/>
+        FROM logs l
+        LEFT JOIN app_registrations ar ON ar.id = l.app_id
+        WHERE l.id = #{id}
+    </select>
+
+    <select id="searchByTrace" resultType="com.hj.log.query.dto.LogView">
+        SELECT
+        <include refid="cols"/>
+        FROM logs l
+        LEFT JOIN app_registrations ar ON ar.id = l.app_id
+        WHERE l.trace_id = #{traceId}
+        ORDER BY l.server_ts ASC, l.id ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
