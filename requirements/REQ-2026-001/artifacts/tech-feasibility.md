@@ -16,7 +16,7 @@ refs-requirement: true
 
 1. 技术栈（JDK 21 + Spring Boot 3.x + MyBatis + MySQL 8）完全在团队既有约束内（来源：context/project/log-platform/CLAUDE.md:55），根 `pom.xml` 已锁定版本，无新依赖引入风险。
 2. 规模数字（10 万条/日 · 单条 ≤ 2KB · QPS 500 · 保留 7 天 ≈ 1.4GB）对单库 MySQL 完全可承载；`notes.md:63` 的「logs 单表不分区、二期按 server_ts 月分区」决策有充分依据。
-3. 6 module 划分（log-sdk / log-common / log-source / log-ingestion / log-query / log-web）依赖无循环，log-sdk 独立发布无框架绑定，模块边界干净（来源：`notes.md:14-32`）。
+3. 6 module 划分（log-sdk / log-common / log-source / log-ingestion / log-query / log-web）依赖无循环，log-sdk 独立发布无框架绑定，模块边界干净（来源：../notes.md:14）。
 4. 唯一集中复杂度在 `log-sdk` 的异步缓冲 + 失败降级机制，属于有明确方案的工程问题，不构成架构级阻碍。
 5. 无 blocker。
 
@@ -51,7 +51,7 @@ refs-requirement: true
 - **缓解**：
   - MVP 阶段 keyword 限定为前缀匹配或精确子串（`LIKE 'xxx%'`），禁止裸 `LIKE '%xxx%'`；在 API 文档中明确此限制，同步告知 mcp-log-viewer
   - 保留期 DELETE 改分批：每次 500 行 + `SLEEP(10ms)` 循环，封装为 `LogRetentionTask`（Spring `@Scheduled` 每小时触发）
-  - DDL 脚本注释中预留「按 server_ts 月分区」二期改造入口（来源：notes.md:63）
+  - DDL 脚本注释中预留「按 server_ts 月分区」二期改造入口（来源：../notes.md:63）
 
 ### R4 · write QPS 500 下 api_keys.last_used_at 高频 UPDATE · tech · likelihood=low · impact=medium
 
