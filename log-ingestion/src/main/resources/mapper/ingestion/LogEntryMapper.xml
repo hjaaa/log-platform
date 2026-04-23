@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hj.log.ingestion.mapper.LogEntryMapper">
+
+    <insert id="batchInsert">
+        INSERT INTO logs (
+            app_id, log_kind, level, message, stack_trace, context_data,
+            trace_id, span_id, request_id, logger_name, thread_name, source_host,
+            client_ts, server_ts
+        ) VALUES
+        <foreach collection="entries" item="e" separator=",">
+            (
+                #{e.appId},
+                #{e.logKind},
+                #{e.level},
+                #{e.message},
+                #{e.stackTrace},
+                #{e.contextData},
+                #{e.traceId},
+                #{e.spanId},
+                #{e.requestId},
+                #{e.loggerName},
+                #{e.threadName},
+                #{e.sourceHost},
+                #{e.clientTs},
+                #{e.serverTs}
+            )
+        </foreach>
+    </insert>
+
+    <!--
+      保留期清理：MySQL 8 与 H2 均支持 DELETE ... LIMIT；省略 ORDER BY 让 H2 也能跑。
+      删除顺序对语义无影响（cutoff 内任一行都会被删），仅需保证每批 ≤ batchSize 成功推进。
+    -->
+    <delete id="deleteOldest">
+        DELETE FROM logs
+         WHERE server_ts &lt; #{cutoff}
+         LIMIT #{batchSize}
+    </delete>
+
+</mapper>
