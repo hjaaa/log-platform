@@ -23,7 +23,7 @@ refs-tech-feasibility: true
 
 - **单进程部署**：`log-web` 是唯一的 Spring Boot 启动入口，组装其余后端 5 个 module（`log-common` / `log-source` / `log-ingestion` / `log-query`，`log-sdk` 为客户端 jar，**不打包进 log-web**）。
 - **独立客户端**：`log-sdk` 单独发布到内部 Maven 仓库，业务应用通过 `pom.xml` 依赖 + 配置项接入。
-- **跨仓边界**：`log-platform` 只暴露 REST API；`mcp-platform` 仓的 `mcp-log-viewer` 持 read API Key，作为 Claude Code → log-platform 的中介（来源：notes.md:90-100）。
+- **跨仓边界**：`log-platform` 只暴露 REST API；`mcp-platform` 仓的 `mcp-log-viewer` 持 read API Key，作为 Claude Code → log-platform 的中介（来源：notes.md:90）。
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
