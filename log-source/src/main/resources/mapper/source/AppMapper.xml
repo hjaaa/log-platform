@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hj.log.source.mapper.AppMapper">
+
+    <resultMap id="AppResultMap" type="com.hj.log.common.domain.AppRegistration">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="name" column="name"/>
+        <result property="owner" column="owner"/>
+        <result property="environment" column="environment"
+                javaType="com.hj.log.common.enums.Environment"
+                typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result property="status" column="status"
+                javaType="com.hj.log.common.enums.AppStatus"
+                typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO app_registrations (code, name, owner, environment, status)
+        VALUES (#{code}, #{name}, #{owner}, #{environment}, #{status})
+    </insert>
+
+    <select id="findById" resultMap="AppResultMap">
+        SELECT id, code, name, owner, environment, status, created_at, updated_at
+          FROM app_registrations
+         WHERE id = #{id}
+    </select>
+
+    <select id="findByCode" resultMap="AppResultMap">
+        SELECT id, code, name, owner, environment, status, created_at, updated_at
+          FROM app_registrations
+         WHERE code = #{code}
+    </select>
+
+    <select id="list" resultMap="AppResultMap">
+        SELECT id, code, name, owner, environment, status, created_at, updated_at
+          FROM app_registrations
+        <where>
+            <if test="code != null">AND code = #{code}</if>
+            <if test="environment != null">AND environment = #{environment}</if>
+            <if test="status != null">AND status = #{status}</if>
+        </where>
+         ORDER BY id ASC
+    </select>
+
+</mapper>
