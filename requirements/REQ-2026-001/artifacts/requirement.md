@@ -9,17 +9,17 @@ refs-requirement: true
 
 ## 背景
 
-本项目的目标是从零设计一个分布式日志平台，定位为 **agent-first**——与传统日志系统（侧重人工运维与告警）不同，本平台的核心价值在于让 AI 编码助手（Claude Code 类）直接读取日志信息，构建"看错误 → 改代码 → 验证"的反馈回路，在开发阶段自主修复问题 [待用户确认]。
+本项目的目标是从零设计一个分布式日志平台，定位为 **agent-first**——与传统日志系统（侧重人工运维与告警）不同，本平台的核心价值在于让 AI 编码助手（Claude Code 类）直接读取日志信息，构建"看错误 → 改代码 → 验证"的反馈回路，在开发阶段自主修复问题。
 
-仓库已有骨架代码（来源：context/project/log-platform/CLAUDE.md:26）定义了 `log-core` / `log-web` 两个 Maven 模块，以及 `LogEntry / AlertRule / LogSource / NotificationConfig` 四个 DO。本需求**不复用**这些既有代码，而是基于重新评估后的 MVP 定位，从零设计顶层模块划分、数据模型、接口契约 [待用户确认]。
+仓库已有骨架代码（来源：context/project/log-platform/CLAUDE.md:26）定义了 `log-core` / `log-web` 两个 Maven 模块，以及 `LogEntry / AlertRule / LogSource / NotificationConfig` 四个 DO。本需求**不复用**这些既有代码，而是基于重新评估后的 MVP 定位，从零设计顶层模块划分、数据模型、接口契约。
 
 definition 阶段（本文档）聚焦 WHY / WHAT；HOW 层面的产出（模块详细分工、表结构、接口契约初稿、跨仓协作约定）记录在 `../notes.md`，供后续 outline-design / detail-design 阶段消费。
 
 ## 目标
 
-- **主目标**：让本地 AI 编码助手（MVP 锁定 Claude Code，通过 `mcp-platform` 仓库另行开发的 `mcp-log-viewer` package 接入）通过标准化通道读取任意接入应用的日志，支撑"agent 自主修 bug"的反馈回路 [待用户确认]。
-- **次要目标**：人也能通过 HTTP 查询日志，但人不是 MVP 的主要服务对象 [待用户确认]。
-- **定位边界**：本平台只提供日志数据面（收 + 存 + 给），不内置 AI 归因 / 自动摘要 / 智能问答等能力，分析动作由 agent 自身完成 [待用户确认]。
+- **主目标**：让本地 AI 编码助手（MVP 锁定 Claude Code，通过 `mcp-platform` 仓库另行开发的 `mcp-log-viewer` package 接入）通过标准化通道读取任意接入应用的日志，支撑"agent 自主修 bug"的反馈回路。
+- **次要目标**：人也能通过 HTTP 查询日志，但人不是 MVP 的主要服务对象。
+- **定位边界**：本平台只提供日志数据面（收 + 存 + 给），不内置 AI 归因 / 自动摘要 / 智能问答等能力，分析动作由 agent 自身完成。
 
 ## 用户场景
 
@@ -51,7 +51,7 @@ definition 阶段（本文档）聚焦 WHY / WHAT；HOW 层面的产出（模块
 
 ## 非功能需求
 
-下表数字为 brainstorming 期间依据 MVP 个人/小团队场景得出的**初始假设**，需在 tech-research 阶段压测或上线后按实际数据校正 [待用户确认]：
+下表数字为 brainstorming 期间依据 MVP 个人/小团队场景得出的**初始假设**，需在 tech-research 阶段压测或上线后按实际数据校正：
 
 | 维度 | 指标 |
 |---|---|
@@ -67,7 +67,7 @@ definition 阶段（本文档）聚焦 WHY / WHAT；HOW 层面的产出（模块
 - **安全**：
   - API Key 只存 SHA-256 hash；签发时仅在一次响应中返回明文。
   - scope 分离：`write` 与 `read` 两种 scope 独立签发；业务应用用 write，agent 用 read。
-  - 日志敏感信息脱敏方案 [待用户确认]（MVP 默认不做，由使用方自律）。
+  - 日志敏感信息脱敏方案（MVP 默认不做，由使用方自律）。
 - **可观测性**：Spring Actuator `/health`，Micrometer 埋点写入/查询 QPS、错误率。
 
 ## 范围
@@ -80,11 +80,11 @@ definition 阶段（本文档）聚焦 WHY / WHAT；HOW 层面的产出（模块
   - 写入（write scope）：`POST /logs`（批量接收，单批条数在 detail-design 阶段敲定）。
   - 查询（read scope）：`GET /logs/search`、`GET /logs/{id}`、`GET /logs/trace/{traceId}`。
 - **Java SDK**（`log-sdk` jar）：供业务应用集成；内部异步缓冲 + 批量 POST + 失败降级本地文件。
-- **REST API 契约文档**：版本化路径前缀 `/api/v1`；文档格式 OpenAPI 或 Markdown，作为交付物供 mcp-platform 的 `mcp-log-viewer` 消费 [待用户确认]。
+- **REST API 契约文档**：版本化路径前缀 `/api/v1`；文档格式 OpenAPI 或 Markdown，作为交付物供 mcp-platform 的 `mcp-log-viewer` 消费。
 
 ### 不包含（明确不做）
 
-- **告警规则、通知（钉钉等）**：二期开坑；本 MVP 不做，也不预先创建告警相关数据表 [待用户确认]。
+- **告警规则、通知（钉钉等）**：二期开坑；本 MVP 不做，也不预先创建告警相关数据表。
 - **长连接订阅（SSE / WebSocket）**：二期。
 - **平台内置 AI 能力**（归因、摘要、问答）：与"数据面专注"定位冲突，不做。
 - **MCP server 实现**：不在本仓库；作为 mcp-platform 仓库的独立需求（计划中的 `packages/mcp-log-viewer`）交付。
@@ -104,15 +104,17 @@ definition 阶段（本文档）聚焦 WHY / WHAT；HOW 层面的产出（模块
 | 应用注册严谨度 | 轻（全局 key）/ 中（每 app 一 key）/ 重（含服务元信息） | **中** | 每应用独立 key，scope 分 write / read |
 | 日志送入通道 | SDK POST / 文件 tail / stdout 采集 | **SDK HTTP POST** | 最简；避免 sidecar 复杂度 |
 
-## 待澄清清单
+## 澄清记录
 
-1. **平台定位表述**：背景 / 目标章节中 "agent-first"、"反馈回路"、"不内置 AI" 等定性描述源自 2026-04-23 brainstorming 口述，需留档正式确认。
-2. **既有代码不复用**：仓库已有 `log-core` / `log-web` 及 4 个 DO，本需求重新设计而不复用——与历史设计意图是否一致？
-3. **规模与性能假设**：10 应用 / 10 万条/日 / 单条 2KB / 保留 7 天 / QPS 500 / P99 100ms 为初始假设，需 tech-research 阶段压测或上线后观测实际数据校正。
-4. **日志敏感信息脱敏策略**：MVP 默认不做（使用方自律）。是否需要 SDK 侧提供脱敏 hook 作为二期能力？粒度如何？
-5. **管理后台 UI**：控制面 MVP 只暴露 REST，不做 Web 界面。二期是否需要？
-6. **admin token 初始化方式**：计划为 Spring 配置项 `LOG_PLATFORM_ADMIN_TOKEN`，支持环境变量 override。是否需要更强方案（Vault / 启动时交互式生成）？
-7. **Claude Code ↔ mcp-platform ↔ log-platform 鉴权链**：mcp-platform 自带 API Key 校验；mcp-log-viewer 内部持 log-platform 的 read key。本机可信环境下 Claude Code ↔ mcp-platform 之间的 stdio 不额外鉴权。是否接受此分层？
-8. **REST API 契约版本化策略**：初版路径前缀 `/api/v1`，breaking change 另起 `/api/v2`。是否需要 Sunset / Deprecation header 等正式机制？
-9. **"不预留告警相关数据表"**：本 MVP 连告警所需的表都不建。若二期改动幅度大（加列 / 新表 / 回迁日志），是否接受此权衡？
-10. **MCP 工具清单细节**：`searchLogs / getTrace / getLog` 三个工具的具体签名（入参校验、返回字段裁剪）归 mcp-platform 的需求；本需求只约束可被消费的 REST 端点。
+以下为 2026-04-23 对本文档草案的最终确认记录；所有原"待澄清"事项已处理，正文不再含待确认标记。
+
+1. **平台定位表述**：agent-first / 反馈回路 / 不内置 AI 等定性描述已正式确认为本需求定位。
+2. **既有代码不复用**：确认不复用仓库现有 `log-core` / `log-web` 与 4 个 DO；从零设计 6 个 module。
+3. **规模与性能假设**：10 应用 / 10 万条/日 / 单条 2KB / 保留 7 天 / QPS 500 / P99 100ms 作为 MVP 初始假设采纳；tech-research 压测或上线观测数据偏差时再修订。
+4. **日志敏感信息脱敏策略**：MVP 不做平台端脱敏，由使用方自律。SDK 侧预留"脱敏 hook"作为二期候选（归档于 `../notes.md` 的 Roadmap），本 MVP 不编码。
+5. **管理后台 UI**：MVP 不做；控制面只走 REST + 脚本。二期视使用规模再议。
+6. **admin token 初始化方式**：走 Spring 配置项 `LOG_PLATFORM_ADMIN_TOKEN`，支持环境变量 override；不引入 Vault 等更重方案。
+7. **Claude Code ↔ mcp-platform ↔ log-platform 鉴权链**：接受三段式分层；本机可信环境下 Claude Code 到 mcp-platform 的 stdio 不额外鉴权。
+8. **REST API 契约版本化策略**：路径前缀 `/api/v1`，breaking change 另起 `/api/v2`；不做 Sunset / Deprecation header 等正式机制。
+9. **"不预留告警相关数据表"**：接受权衡；二期开告警能力时再加表 / 加列 / 做 migration。
+10. **MCP 工具签名归属**：`searchLogs` / `getTrace` / `getLog` 的具体签名归于 mcp-platform 仓库的独立需求；本 REQ 只约束可被消费的 REST 端点。
