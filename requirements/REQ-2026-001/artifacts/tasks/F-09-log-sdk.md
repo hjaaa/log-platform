@@ -1,13 +1,15 @@
 ---
 feature_id: F-09-log-sdk
 title: log-sdk · 异步缓冲 + HTTP POST + 失败降级 + replay
-status: pending
+status: in-progress
 type: feature
 module: log-sdk
 effort_pd: 4
 risk: high
 tags: [concurrency, io, client-jar]
 depends_on: [F-02-skeleton-6modules]
+created_at: 2026-04-23T11:25:00Z
+updated_at: 2026-04-24T00:15:00Z
 refs:
   - artifacts/detailed-design.md#6-log-sdk-详细设计
 ---
