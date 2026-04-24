@@ -1,0 +1,897 @@
+openapi: 3.0.3
+
+info:
+  title: log-platform API
+  version: 1.0.0
+  description: |
+    log-platform v1 REST 契约 —— 面向 agent（Claude Code 经 mcp-platform/mcp-log-viewer 消费）。
+
+    - 详细设计：`requirements/REQ-2026-001/artifacts/detailed-design.md` §2
+    - 错误码字典：`detailed-design.md` §3
+    - 响应统一包装 `ResponseResult<T>`；`data` 泛型随路径而不同。
+    - 三种 scope 对应三个 securityScheme（共用 http bearer 机制，实际由 AuthFilter 校验）：
+        - `BearerAdmin` —— 控制面（4 endpoint）
+        - `BearerWriteKey` —— 写入面（1 endpoint）
+        - `BearerReadKey` —— 查询面（3 endpoint）
+    - 所有时间字段格式：ISO8601 UTC，精度到毫秒（例 `2026-04-23T11:15:00.000Z`）。
+  contact:
+    name: log-platform maintainers
+    url: https://github.com/hjaaa/log-platform
+  license:
+    name: Internal
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发（log-web 默认端口）
+  - url: https://log.example.internal
+    description: 生产环境占位（以实际部署为准）
+
+tags:
+  - name: admin-apps
+    description: 应用注册与查询（control plane）
+  - name: admin-keys
+    description: API Key 签发与撤销（control plane）
+  - name: ingestion
+    description: 批量日志写入
+  - name: query
+    description: 日志查询（search / by id / by traceId）
+
+security: []
+
+paths:
+  /api/v1/apps:
+    post:
+      tags: [admin-apps]
+      summary: 注册应用
+      operationId: createApp
+      security:
+        - BearerAdmin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppRequest'
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_AppView'
+        '400':
+          description: 参数不合法（APP_INVALID_ENV / BAD_REQUEST）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '401':
+          description: 缺失或无效 admin token（AUTH_MISSING_TOKEN / AUTH_INVALID_ADMIN_TOKEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '409':
+          description: code 已存在（APP_CODE_DUPLICATE）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+    get:
+      tags: [admin-apps]
+      summary: 列出应用
+      operationId: listApps
+      security:
+        - BearerAdmin: []
+      parameters:
+        - in: query
+          name: code
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - in: query
+          name: environment
+          required: false
+          schema:
+            $ref: '#/components/schemas/Environment'
+        - in: query
+          name: status
+          required: false
+          description: 默认 active；传 "all" 或具体状态按实现过滤
+          schema:
+            type: string
+            default: active
+      responses:
+        '200':
+          description: 列表（MVP 无分页，≤ 10 应用）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_AppViewList'
+        '401':
+          description: AUTH_MISSING_TOKEN / AUTH_INVALID_ADMIN_TOKEN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+
+  /api/v1/apps/{appId}/keys:
+    post:
+      tags: [admin-keys]
+      summary: 签发 API Key（仅此一次返回明文）
+      operationId: issueApiKey
+      security:
+        - BearerAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/AppIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueKeyRequest'
+      responses:
+        '200':
+          description: 签发成功，响应体 `data.plaintext` 为明文 key，服务端不再保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_ApiKeyIssuedView'
+        '400':
+          description: KEY_INVALID_SCOPE / BAD_REQUEST
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '401':
+          description: AUTH_MISSING_TOKEN / AUTH_INVALID_ADMIN_TOKEN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '404':
+          description: 应用不存在（APP_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+
+  /api/v1/apps/{appId}/keys/{keyId}:
+    delete:
+      tags: [admin-keys]
+      summary: 逻辑撤销 API Key
+      description: 将 `status` 改为 `revoked`，不物理删除；撤销后鉴权立即失效。
+      operationId: revokeApiKey
+      security:
+        - BearerAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/AppIdPath'
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 撤销成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_ApiKeyView'
+        '401':
+          description: AUTH_MISSING_TOKEN / AUTH_INVALID_ADMIN_TOKEN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '404':
+          description: key 不存在（KEY_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+
+  /api/v1/logs:
+    post:
+      tags: [ingestion]
+      summary: 批量写入日志
+      description: |
+        批量写入；单条校验失败进入 `data.rejected`，整批仍返回 HTTP 200。
+        只有批 size 超限或鉴权失败才走 4xx。
+      operationId: ingestLogs
+      security:
+        - BearerWriteKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+      responses:
+        '200':
+          description: 接收成功（即使含部分失败）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_IngestResponse'
+        '400':
+          description: 批超限（INGEST_BATCH_TOO_LARGE）或入参缺失（BAD_REQUEST）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '401':
+          description: 缺 key 或 key 无效（AUTH_MISSING_TOKEN / AUTH_INVALID_KEY）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '403':
+          description: scope 不匹配（AUTH_SCOPE_MISMATCH）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+
+  /api/v1/logs/search:
+    get:
+      tags: [query]
+      summary: 条件查询日志（游标分页）
+      description: |
+        必须提供 `appCode` 或 `traceId` 其一（避免盲扫）。游标
+        格式为 `base64(server_ts_millis + ":" + id)`，升级时保持兼容。
+      operationId: searchLogs
+      security:
+        - BearerReadKey: []
+      parameters:
+        - in: query
+          name: appCode
+          schema:
+            type: string
+          description: 应用 code；与 traceId 二选一必填
+        - in: query
+          name: level
+          description: 单值或 CSV 多值（`level=ERROR,WARN`）
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/LogLevel'
+          style: form
+          explode: false
+        - in: query
+          name: kind
+          schema:
+            $ref: '#/components/schemas/LogKind'
+        - in: query
+          name: from
+          description: ISO8601；默认 `now-1h`
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          description: ISO8601；默认 `now`
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: keyword
+          description: 仅前缀匹配（`LIKE 'keyword%'`）；含 `%` 通配符前缀会被拒绝
+          schema:
+            type: string
+        - in: query
+          name: traceId
+          schema:
+            type: string
+        - in: query
+          name: requestId
+          schema:
+            type: string
+        - in: query
+          name: cursor
+          description: 上一页返回的 `nextCursor`
+          schema:
+            type: string
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - in: query
+          name: fields
+          description: CSV 字段裁剪（节省 agent token）
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+      responses:
+        '200':
+          description: 查询结果（游标分页）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_LogPage'
+        '400':
+          description: QUERY_MISSING_APP_FILTER / QUERY_KEYWORD_PATTERN_INVALID / QUERY_PAGE_SIZE_TOO_LARGE / QUERY_INVALID_CURSOR / BAD_REQUEST
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '401':
+          description: AUTH_MISSING_TOKEN / AUTH_INVALID_KEY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '403':
+          description: AUTH_SCOPE_MISMATCH
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+
+  /api/v1/logs/{id}:
+    get:
+      tags: [query]
+      summary: 按 id 查询单条日志
+      operationId: getLogById
+      security:
+        - BearerReadKey: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: fields
+          description: CSV 字段裁剪
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_LogView'
+        '401':
+          description: AUTH_MISSING_TOKEN / AUTH_INVALID_KEY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '403':
+          description: AUTH_SCOPE_MISMATCH
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '404':
+          description: 日志不存在或已过保留期（QUERY_LOG_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+
+  /api/v1/logs/trace/{traceId}:
+    get:
+      tags: [query]
+      summary: 按 traceId 拉整条调用链
+      description: 按 `server_ts` 升序返回，便于 agent 理解调用顺序；命中数超过 `limit` 时 `truncated=true`。
+      operationId: getLogsByTrace
+      security:
+        - BearerReadKey: []
+      parameters:
+        - in: path
+          name: traceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+        - in: query
+          name: fields
+          description: CSV 字段裁剪
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_LogTracePage'
+        '400':
+          description: limit 超限（QUERY_LIMIT_TOO_LARGE）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '401':
+          description: AUTH_MISSING_TOKEN / AUTH_INVALID_KEY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '403':
+          description: AUTH_SCOPE_MISMATCH
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+
+components:
+  securitySchemes:
+    BearerAdmin:
+      type: http
+      scheme: bearer
+      description: |
+        admin token 明文（来自 `LOG_PLATFORM_ADMIN_TOKEN` 环境变量）；
+        用于控制面 4 个 endpoint。
+    BearerWriteKey:
+      type: http
+      scheme: bearer
+      description: API Key 明文（`scope=write`）；用于 `POST /api/v1/logs`。
+    BearerReadKey:
+      type: http
+      scheme: bearer
+      description: API Key 明文（`scope=read`）；用于 `/api/v1/logs/search`、`/api/v1/logs/{id}`、`/api/v1/logs/trace/{traceId}`。
+
+  parameters:
+    AppIdPath:
+      in: path
+      name: appId
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+
+    # ---------- 枚举 ----------
+    Environment:
+      type: string
+      enum: [dev, staging, prod]
+    LogLevel:
+      type: string
+      enum: [ERROR, WARN, INFO, DEBUG]
+    LogKind:
+      type: string
+      enum: [application, access, test]
+    Scope:
+      type: string
+      enum: [write, read]
+    AppStatus:
+      type: string
+      enum: [active, disabled]
+    ApiKeyStatus:
+      type: string
+      enum: [active, revoked]
+    ErrorCode:
+      type: string
+      description: 错误码字典；完整定义见 `requirements/REQ-2026-001/artifacts/detailed-design.md` §3。
+      enum:
+        - OK
+        - INTERNAL_ERROR
+        - BAD_REQUEST
+        - AUTH_MISSING_TOKEN
+        - AUTH_INVALID_KEY
+        - AUTH_INVALID_ADMIN_TOKEN
+        - AUTH_SCOPE_MISMATCH
+        - APP_CODE_DUPLICATE
+        - APP_INVALID_ENV
+        - APP_NOT_FOUND
+        - KEY_INVALID_SCOPE
+        - KEY_NOT_FOUND
+        - INGEST_BATCH_TOO_LARGE
+        - INGEST_MESSAGE_BLANK
+        - INGEST_INVALID_LEVEL
+        - INGEST_INVALID_KIND
+        - INGEST_MESSAGE_TOO_LONG
+        - QUERY_MISSING_APP_FILTER
+        - QUERY_KEYWORD_PATTERN_INVALID
+        - QUERY_PAGE_SIZE_TOO_LARGE
+        - QUERY_LIMIT_TOO_LARGE
+        - QUERY_LOG_NOT_FOUND
+        - QUERY_INVALID_CURSOR
+
+    # ---------- 响应包装（allOf 模式模拟泛型） ----------
+    ResponseEnvelope:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: 人友好描述；成功时为空串。**禁止**含堆栈或明文 token。
+      description: 所有接口统一响应的基础结构；`data` 字段由具体响应 schema 扩展。
+
+    ResponseResult_Error:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+              description: 错误响应 `data` 固定为 `null`
+
+    ResponseResult_AppView:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AppView'
+
+    ResponseResult_AppViewList:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/AppView'
+
+    ResponseResult_ApiKeyView:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ApiKeyView'
+
+    ResponseResult_ApiKeyIssuedView:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ApiKeyIssuedView'
+
+    ResponseResult_IngestResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/IngestResponse'
+
+    ResponseResult_LogView:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LogView'
+
+    ResponseResult_LogPage:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LogPage'
+
+    ResponseResult_LogTracePage:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LogTracePage'
+
+    # ---------- 应用 / Key ----------
+    CreateAppRequest:
+      type: object
+      required: [code, name, owner, environment]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '^[a-z0-9-]+$'
+          example: order-service
+        name:
+          type: string
+          maxLength: 128
+          example: Order Service
+        owner:
+          type: string
+          maxLength: 64
+          example: trade-team
+        environment:
+          $ref: '#/components/schemas/Environment'
+
+    AppView:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+          nullable: true
+        owner:
+          type: string
+          nullable: true
+        environment:
+          $ref: '#/components/schemas/Environment'
+        status:
+          $ref: '#/components/schemas/AppStatus'
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    IssueKeyRequest:
+      type: object
+      required: [scope]
+      properties:
+        scope:
+          $ref: '#/components/schemas/Scope'
+        label:
+          type: string
+          maxLength: 64
+          nullable: true
+          example: order-service-write-prod
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ApiKeyIssuedView:
+      type: object
+      description: |
+        仅在签发瞬间返回；包含明文 `plaintext`。
+        **禁止出现 `keyHash` 字段**（避免任何路径泄露）。
+      properties:
+        id:
+          type: integer
+          format: int64
+        appId:
+          type: integer
+          format: int64
+        scope:
+          $ref: '#/components/schemas/Scope'
+        label:
+          type: string
+          nullable: true
+        keyPrefix:
+          type: string
+          description: 前 8 字符（含 `lpk_` 前缀），仅用于在列表中识别
+          example: lpk_AB12
+        plaintext:
+          type: string
+          description: key 明文；调用方必须保存，服务端不再返回
+          example: lpk_AB12CD34EF56...
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ApiKeyView:
+      type: object
+      description: 列表 / 撤销响应里的 key 视图；**不含** `keyHash` 与 `plaintext`。
+      properties:
+        id:
+          type: integer
+          format: int64
+        appId:
+          type: integer
+          format: int64
+        keyPrefix:
+          type: string
+        scope:
+          $ref: '#/components/schemas/Scope'
+        label:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ApiKeyStatus'
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ---------- Ingestion ----------
+    LogEventDto:
+      type: object
+      required: [logKind, level, message]
+      properties:
+        logKind:
+          $ref: '#/components/schemas/LogKind'
+        level:
+          $ref: '#/components/schemas/LogLevel'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: 非空；超过 2048 字符进 rejected.reason=INGEST_MESSAGE_TOO_LONG
+        stackTrace:
+          type: string
+          maxLength: 16384
+          nullable: true
+        contextData:
+          type: string
+          description: 建议 JSON 字符串；服务端以 TEXT 原样落库
+          nullable: true
+        traceId:
+          type: string
+          maxLength: 64
+          nullable: true
+        spanId:
+          type: string
+          maxLength: 32
+          nullable: true
+        requestId:
+          type: string
+          maxLength: 64
+          nullable: true
+        loggerName:
+          type: string
+          nullable: true
+        threadName:
+          type: string
+          nullable: true
+        sourceHost:
+          type: string
+          nullable: true
+        clientTs:
+          type: string
+          format: date-time
+          nullable: true
+          description: 客户端时间；若缺省，服务端仅记录 `serverTs`
+
+    IngestRequest:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          minItems: 1
+          description: 单批上限由配置项 `log.platform.ingestion.max-batch-size` 决定（默认 200）
+          items:
+            $ref: '#/components/schemas/LogEventDto'
+
+    RejectItem:
+      type: object
+      required: [index, reason]
+      properties:
+        index:
+          type: integer
+          description: 对应 `events[]` 的下标
+        reason:
+          $ref: '#/components/schemas/ErrorCode'
+
+    IngestResponse:
+      type: object
+      required: [accepted, rejected]
+      properties:
+        accepted:
+          type: integer
+          description: 成功入库条数
+        rejected:
+          type: array
+          items:
+            $ref: '#/components/schemas/RejectItem'
+
+    # ---------- Query ----------
+    LogView:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        appId:
+          type: integer
+          format: int64
+          nullable: true
+        appCode:
+          type: string
+          nullable: true
+          description: 通过 LEFT JOIN 填充；缺失为 null
+        logKind:
+          $ref: '#/components/schemas/LogKind'
+        level:
+          $ref: '#/components/schemas/LogLevel'
+        message:
+          type: string
+          nullable: true
+        stackTrace:
+          type: string
+          nullable: true
+        contextData:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        spanId:
+          type: string
+          nullable: true
+        requestId:
+          type: string
+          nullable: true
+        loggerName:
+          type: string
+          nullable: true
+        threadName:
+          type: string
+          nullable: true
+        sourceHost:
+          type: string
+          nullable: true
+        clientTs:
+          type: string
+          format: date-time
+          nullable: true
+        serverTs:
+          type: string
+          format: date-time
+          nullable: true
+
+    LogPage:
+      type: object
+      description: 通用游标分页结构（`Page<LogView>`）
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogView'
+        nextCursor:
+          type: string
+          nullable: true
+          description: 用于下一页；为空或缺失表示已到末页
+        pageSize:
+          type: integer
+
+    LogTracePage:
+      type: object
+      description: 按 traceId 返回的 trace 分页（`TracePage<LogView>`）
+      required: [items, truncated]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogView'
+        truncated:
+          type: boolean
+          description: 真实命中数 > limit 时为 true

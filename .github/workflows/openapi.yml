@@ -1,0 +1,32 @@
+name: openapi-validate
+
+on:
+  pull_request:
+    paths:
+      - 'docs/api/**'
+      - '.github/workflows/openapi.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'docs/api/**'
+      - '.github/workflows/openapi.yml'
+
+jobs:
+  validate:
+    name: swagger-cli validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # swagger-cli 已由 @apidevtools 维护团队 abandoned，但 F-10 任务与 detailed-design §10.2
+      # 明确要求 `swagger-cli validate`。我们同时跑 @redocly/cli（语义一致，且对 3.x 校验更严）
+      # 作为"交叉保险"，两者任何一个失败即 CI 失败。
+      - name: swagger-cli validate
+        run: npx --yes @apidevtools/swagger-cli@latest validate docs/api/v1/openapi.yaml
+
+      - name: redocly lint (cross-check)
+        run: npx --yes @redocly/cli@latest lint docs/api/v1/openapi.yaml

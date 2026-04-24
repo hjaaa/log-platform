@@ -1,7 +1,7 @@
 ---
 feature_id: F-10-openapi-contract
 title: OpenAPI v1 契约文件
-status: pending
+status: in-progress
 type: doc
 module: doc
 effort_pd: 1
