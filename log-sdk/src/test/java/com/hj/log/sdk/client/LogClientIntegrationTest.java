@@ -308,8 +308,13 @@ class LogClientIntegrationTest {
     // --- 辅助 ---------------------------------------------------------------
 
     private List<Path> listFallbackFiles() throws IOException {
+        // 同时覆盖 .ndjson 和 .ndjson.replay 两种状态，避免 replay 中间态被漏计
         try (Stream<Path> s = Files.list(fallbackDir)) {
-            return s.filter(p -> p.getFileName().toString().endsWith(".ndjson"))
+            return s.filter(
+                            p -> {
+                                String n = p.getFileName().toString();
+                                return n.endsWith(".ndjson") || n.endsWith(".ndjson.replay");
+                            })
                     .sorted(Comparator.comparing(p -> p.getFileName().toString()))
                     .toList();
         }

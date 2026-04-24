@@ -86,9 +86,16 @@ public class HttpTransport {
             }
             return TransportOutcome.TRANSIENT_ERROR;
         } catch (IOException e) {
+            // 不打堆栈避免高频故障期间日志洪水；由 RetryingSender 在耗尽时升级决策
+            log.warn(
+                    "[log-sdk] http send failed (batch={}): {}: {}",
+                    events.size(),
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
             return TransportOutcome.TRANSIENT_ERROR;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            log.warn("[log-sdk] http send interrupted (batch={})", events.size());
             return TransportOutcome.TRANSIENT_ERROR;
         }
     }

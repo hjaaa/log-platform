@@ -23,6 +23,8 @@ public class FallbackReader {
 
     private static final Logger log = LoggerFactory.getLogger(FallbackReader.class);
     private static final String FILE_SUFFIX = ".ndjson";
+    /** "正在 replay 中"标记后缀——文件已被 ReplayWorker 原子 rename，writer 不会再追加。 */
+    static final String REPLAY_SUFFIX = ".replay";
 
     private final Path dir;
     private final ObjectMapper mapper;
@@ -32,18 +34,31 @@ public class FallbackReader {
         this.mapper = mapper;
     }
 
-    /** 列出目录下待 replay 的文件，按文件名字典序（最早在前）。 */
+    /**
+     * 列出目录下待 replay 的文件，按文件名字典序（最早在前）。
+     *
+     * <p>同时包含两种状态的文件：
+     * <ul>
+     *   <li>{@code *.ndjson} — 新鲜写入的 fallback，尚未被 replay
+     *   <li>{@code *.ndjson.replay} — 已被 ReplayWorker 原子 rename，处于"读取+发送中"状态；
+     *       可能上一轮失败残留，需继续处理</li>
+     * </ul>
+     */
     public List<Path> listPendingFiles() throws IOException {
         if (!Files.exists(dir)) {
             return List.of();
         }
         List<Path> files = new ArrayList<>();
         try (var stream = Files.list(dir)) {
-            stream.filter(p -> p.getFileName().toString().endsWith(FILE_SUFFIX))
+            stream.filter(p -> isFallbackFile(p.getFileName().toString()))
                     .sorted(Comparator.comparing(p -> p.getFileName().toString()))
                     .forEach(files::add);
         }
         return files;
+    }
+
+    private static boolean isFallbackFile(String name) {
+        return name.endsWith(FILE_SUFFIX) || name.endsWith(FILE_SUFFIX + REPLAY_SUFFIX);
     }
 
     /**
@@ -71,8 +86,10 @@ public class FallbackReader {
                 lock.release();
             }
         } catch (IOException e) {
-            log.error("[log-sdk] open fallback file failed: {}", file, e);
-            return List.of();
+            // 返回 null 而非空列表——语义与"锁未取得"对齐：本轮跳过，留给下一个 replay 周期。
+            // 若返回 List.of()，ReplayWorker 会把 IO 故障文件当作空文件 safeDelete 直接删除，导致数据永久丢失。
+            log.error("[log-sdk] open fallback file failed, will retry next cycle: {}", file, e);
+            return null;
         }
     }
 
