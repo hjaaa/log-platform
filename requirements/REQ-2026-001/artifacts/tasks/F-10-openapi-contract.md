@@ -1,11 +1,12 @@
 ---
 feature_id: F-10-openapi-contract
 title: OpenAPI v1 契约文件
-status: in-progress
+status: done
 type: doc
 module: doc
 effort_pd: 1
 depends_on: [F-05-log-source-ctrl, F-06-log-ingestion, F-07-log-query]
+review_report: artifacts/review-20260424-023911.md
 refs:
   - artifacts/detailed-design.md#2-rest-接口设计
   - artifacts/detailed-design.md#102-openapi-契约位置
