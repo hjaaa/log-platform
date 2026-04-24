@@ -1,11 +1,18 @@
 ---
 feature_id: F-08-log-web
 title: log-web · 启动入口 + 全局异常 + 配置装配
-status: in-progress
+status: done
 type: feature
 module: log-web
 effort_pd: 1
 depends_on: [F-05-log-source-ctrl, F-06-log-ingestion, F-07-log-query]
+updated_at: 2026-04-24T10:55:00Z
+retroactive_note: |
+  commit d61cd5c（9 tests green）状态漂移补齐。design-consistency-checker
+  追溯审查通过（issues: []），覆盖 5 项检查段：§4.4 GlobalExceptionHandler 三路径
+  + §5.3 lpk_*** 正则脱敏、§5.1 logback pattern、§7.1 13 个配置项、§8.1 admin
+  token fail-fast 三类占位/空/短长都抛、LogPlatformApplication @MapperScan
+  覆盖 source/ingestion/query。task 状态由 in-progress 补齐为 done。
 refs:
   - artifacts/detailed-design.md#44-全局异常处理comhjlogwebhandlerglobalexceptionhandler
   - artifacts/detailed-design.md#8-部署与运行

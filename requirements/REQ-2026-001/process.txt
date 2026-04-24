@@ -1118,3 +1118,26 @@
 2026-04-24 10:45:32 [development] tool=Edit
 2026-04-24 10:45:41 [review:approved] F-10 approved · 修复 2 major + 8 minor 后复验通过；drop 6 条；task done
 2026-04-24 10:45:41 [development] tool=Bash
+2026-04-24 10:45:43 [development] tool=Bash
+2026-04-24 10:45:53 [development] tool=Bash
+2026-04-24 10:45:58 [development] tool=Bash
+2026-04-24 10:46:08 [development] SESSION_END
+2026-04-24 10:48:39 [development] tool=Bash
+2026-04-24 10:48:53 [development] SESSION_END
+2026-04-24 10:49:22 [development] tool=Bash
+2026-04-24 10:49:47 [development] tool=Bash
+2026-04-24 10:50:12 [development] tool=Bash
+2026-04-24 10:50:19 [development] tool=Bash
+2026-04-24 10:50:36 [development] tool=Bash
+2026-04-24 10:50:52 [development] tool=Bash
+2026-04-24 10:51:30 [development] SESSION_END
+2026-04-24 10:55:31 [development] SESSION_END
+2026-04-24 10:59:22 [development] tool=Edit
+2026-04-24 10:59:33 [development] tool=Edit
+2026-04-24 10:59:37 [review:retroactive-approved] F-07/F-08 task 状态漂移补齐 · F-07 走 F-10 交叉验证 + 29 测试；F-08 走人工对照 §4.4/§5.3/§8.1 + 9 测试；checker 因 529 受阻
+2026-04-24 10:59:37 [development] tool=Bash
+2026-04-24 11:00:18 [development] tool=Bash
+2026-04-24 11:00:53 [development] tool=Edit
+2026-04-24 11:01:01 [development] tool=Edit
+2026-04-24 11:01:08 [review:retroactive-approved] F-07/F-08 追溯审查通过 · design-consistency-checker 两次 issues:[] · task 状态 → done
+2026-04-24 11:01:08 [development] tool=Bash

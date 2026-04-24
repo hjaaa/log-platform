@@ -1,15 +1,23 @@
 ---
 feature_id: F-07-log-query
 title: log-query · search / get / trace 三个读端点
-status: in-progress
+status: done
 type: feature
 module: log-query
 effort_pd: 3
 depends_on: [F-04-log-source-auth, F-06-log-ingestion]
 created_at: 2026-04-23T11:45:00Z
-updated_at: 2026-04-23T12:30:00Z
+updated_at: 2026-04-24T10:55:00Z
+retroactive_note: |
+  commit a2af813（29 tests green）状态漂移补齐。design-consistency-checker
+  追溯审查通过（issues: []），覆盖：三端点 path/method、游标格式 §2.4.1、
+  keyword % 前缀拒绝、pageSize/limit 上限、QUERY_* 6 个错误码触发路径、
+  search DESC / trace ASC 排序、翻页条件 (server_ts, id) &lt; (?, ?)。
+  task 状态由 in-progress 补齐为 done。索引覆盖（非 F-07 scope）已在
+  schema.sql 建（idx_logs_app_ts / idx_logs_trace），留待 F-14 E2E 验证。
 refs:
   - artifacts/detailed-design.md#24-查询面read-scope3-个
+  - artifacts/review-20260424-023911.md（F-10 评审中交叉验证了 LogQueryController）
 ---
 
 ## 背景
