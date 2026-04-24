@@ -170,10 +170,10 @@ DELETE SQL：`DELETE FROM logs WHERE server_ts < ? ORDER BY id LIMIT 500`，参�
 - Request：
 
 ```json
-{ "scope": "write", "label": "order-service-write-prod", "expiresAt": null }
+{ "scope": "WRITE", "label": "order-service-write-prod", "expiresAt": null }
 ```
 
-- 校验：`scope ∈ {write,read}`、`label` ≤ 64 字符
+- 校验：`scope ∈ {WRITE,READ}`（Java 枚举大写；入参 `Scope.fromCode()` 做 equalsIgnoreCase 兼容小写，但对外契约值统一大写）、`label` ≤ 64 字符
 - 服务端流程：生成 32 字节随机串 → base32 编码 → 拼前缀 `lpk_`（log-platform key）→ 整体明文 = `lpk_xxxxxxxx...`；`key_prefix` = 明文前 8 位（含 `lpk_`）；`key_hash` = `SHA-256(明文)` 16 进制
 - Response（200，**仅此一次返回明文**）：
 
@@ -183,7 +183,7 @@ DELETE SQL：`DELETE FROM logs WHERE server_ts < ? ORDER BY id LIMIT 500`，参�
   "data": {
     "id": 33,
     "appId": 12,
-    "scope": "write",
+    "scope": "WRITE",
     "label": "order-service-write-prod",
     "keyPrefix": "lpk_AB12",
     "plaintext": "lpk_AB12CD34EF56...",
@@ -202,6 +202,13 @@ DELETE SQL：`DELETE FROM logs WHERE server_ts < ? ORDER BY id LIMIT 500`，参�
 - 行为：`UPDATE api_keys SET status='revoked' WHERE id=? AND app_id=?`；不物理删除
 - Response（200）：`data: { "id": 33, "status": "revoked" }`
 - 错误：`KEY_NOT_FOUND`
+
+#### 2.2.5 `GET /api/v1/apps/{id}/keys`
+
+- 鉴权：admin token
+- 行为：列出指定 app 的全部 API Key；响应元素**不含** `keyHash` 与 `plaintext`（仅 metadata：`id/appId/keyPrefix/scope/label/status/lastUsedAt/expiresAt/createdAt`）
+- Response（200）：`data` 为数组；MVP 无分页（每 app key 数 ≤ 10）
+- 错误：`APP_NOT_FOUND`（appId 不存在）
 
 ### 2.3 写入面（write scope，1 个）
 

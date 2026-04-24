@@ -22,11 +22,12 @@ jobs:
         with:
           node-version: '20'
 
-      # swagger-cli 已由 @apidevtools 维护团队 abandoned，但 F-10 任务与 detailed-design §10.2
+      # swagger-cli 已由 @apidevtools 维护团队停止维护，但 F-10 任务与 detailed-design §10.2
       # 明确要求 `swagger-cli validate`。我们同时跑 @redocly/cli（语义一致，且对 3.x 校验更严）
       # 作为"交叉保险"，两者任何一个失败即 CI 失败。
+      # 两个工具版本均锁定，避免 `@latest` 浮动导致 CI 突然断裂；升级统一走 PR 评审。
       - name: swagger-cli validate
-        run: npx --yes @apidevtools/swagger-cli@latest validate docs/api/v1/openapi.yaml
+        run: npx --yes @apidevtools/swagger-cli@4.0.4 validate docs/api/v1/openapi.yaml
 
       - name: redocly lint (cross-check)
-        run: npx --yes @redocly/cli@latest lint docs/api/v1/openapi.yaml
+        run: npx --yes @redocly/cli@1.25.15 lint docs/api/v1/openapi.yaml

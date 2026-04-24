@@ -27,13 +27,14 @@ npx --yes @redocly/cli@latest lint docs/api/v1/openapi.yaml
 npx --yes @apidevtools/swagger-cli@latest validate docs/api/v1/openapi.yaml
 ```
 
-## Endpoint 速查（8 个）
+## Endpoint 速查（9 个）
 
 | 类别 | Method | Path | Security |
 |---|---|---|---|
 | control plane | POST | `/api/v1/apps` | BearerAdmin |
 | control plane | GET | `/api/v1/apps` | BearerAdmin |
 | control plane | POST | `/api/v1/apps/{appId}/keys` | BearerAdmin |
+| control plane | GET | `/api/v1/apps/{appId}/keys` | BearerAdmin |
 | control plane | DELETE | `/api/v1/apps/{appId}/keys/{keyId}` | BearerAdmin |
 | ingestion | POST | `/api/v1/logs` | BearerWriteKey |
 | query | GET | `/api/v1/logs/search` | BearerReadKey |

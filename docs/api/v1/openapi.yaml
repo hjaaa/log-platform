@@ -22,9 +22,11 @@ info:
 
 servers:
   - url: http://localhost:8080
-    description: 本地开发（log-web 默认端口）
+    description: |
+      仅本地开发（log-web 默认端口）。
+      **禁止**在 staging / prod 使用 http —— Bearer token 必须经 https 传输。
   - url: https://log.example.internal
-    description: 生产环境占位（以实际部署为准）
+    description: 生产环境占位（以实际部署为准，必须 https）
 
 tags:
   - name: admin-apps
@@ -36,7 +38,9 @@ tags:
   - name: query
     description: 日志查询（search / by id / by traceId）
 
-security: []
+# 不声明顶层 security 默认值：每个 endpoint 均在 operation 级显式声明 security，
+# 避免"顶层空覆盖"带来的"新增 endpoint 忘写 security 即契约层无鉴权"的漂移风险。
+# 若未来新增 public endpoint，需 operation 级显式 `security: []` 说明意图。
 
 paths:
   /api/v1/apps:
@@ -98,9 +102,14 @@ paths:
         - in: query
           name: status
           required: false
-          description: 默认 active；传 "all" 或具体状态按实现过滤
+          description: |
+            过滤应用状态。默认 `active` —— 只返回启用中的应用。
+            `disabled` 仅返回停用应用；`all` 返回全部。
+            注：此参数接受的值域是 `AppStatus` 枚举值加字面量 `all`，
+            因此 schema 为 free-form string 而非 $ref。
           schema:
             type: string
+            enum: [active, disabled, all]
             default: active
       responses:
         '200':
@@ -144,6 +153,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResponseResult_Error'
+        '401':
+          description: AUTH_MISSING_TOKEN / AUTH_INVALID_ADMIN_TOKEN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+        '404':
+          description: 应用不存在（APP_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_Error'
+    get:
+      tags: [admin-keys]
+      summary: 列出 app 名下的全部 API Key（不含 keyHash / plaintext）
+      description: |
+        管理员视图：用于人工审计某 app 的 key 列表。响应元素不含敏感字段。
+        MVP 无分页（每 app key 数量 ≤ 10）。
+      operationId: listApiKeysByApp
+      security:
+        - BearerAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/AppIdPath'
+      responses:
+        '200':
+          description: key 列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseResult_ApiKeyViewList'
         '401':
           description: AUTH_MISSING_TOKEN / AUTH_INVALID_ADMIN_TOKEN
           content:
@@ -301,15 +340,7 @@ paths:
             minimum: 1
             maximum: 500
             default: 100
-        - in: query
-          name: fields
-          description: CSV 字段裁剪（节省 agent token）
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: false
+        - $ref: '#/components/parameters/FieldsQuery'
       responses:
         '200':
           description: 查询结果（游标分页）
@@ -350,15 +381,7 @@ paths:
           schema:
             type: integer
             format: int64
-        - in: query
-          name: fields
-          description: CSV 字段裁剪
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: false
+        - $ref: '#/components/parameters/FieldsQuery'
       responses:
         '200':
           description: 查询成功
@@ -406,15 +429,7 @@ paths:
             minimum: 1
             maximum: 1000
             default: 500
-        - in: query
-          name: fields
-          description: CSV 字段裁剪
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: false
+        - $ref: '#/components/parameters/FieldsQuery'
       responses:
         '200':
           description: 查询成功
@@ -466,6 +481,17 @@ components:
       schema:
         type: integer
         format: int64
+    FieldsQuery:
+      in: query
+      name: fields
+      required: false
+      description: CSV 字段裁剪；指定后响应仅保留这些字段（节省 agent token）
+      schema:
+        type: array
+        items:
+          type: string
+      style: form
+      explode: false
 
   schemas:
 
@@ -481,11 +507,15 @@ components:
       enum: [application, access, test]
     Scope:
       type: string
-      enum: [write, read]
+      description: |
+        API Key 作用域。契约值大写（与 Java `Scope` 枚举常量一致，响应 JSON 直接输出
+        `scope.name()`）。入参端服务器通过 `Scope.fromCode()` 做 `equalsIgnoreCase`
+        兼容小写，但消费方应统一按大写生成 / 解析以避免歧义。
+      enum: [WRITE, READ]
     AppStatus:
       type: string
       enum: [active, disabled]
-    ApiKeyStatus:
+    KeyStatus:
       type: string
       enum: [active, revoked]
     ErrorCode:
@@ -563,6 +593,16 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/ApiKeyView'
+
+    ResponseResult_ApiKeyViewList:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ApiKeyView'
 
     ResponseResult_ApiKeyIssuedView:
       allOf:
@@ -655,6 +695,7 @@ components:
       properties:
         scope:
           $ref: '#/components/schemas/Scope'
+          example: WRITE
         label:
           type: string
           maxLength: 64
@@ -717,7 +758,7 @@ components:
           type: string
           nullable: true
         status:
-          $ref: '#/components/schemas/ApiKeyStatus'
+          $ref: '#/components/schemas/KeyStatus'
         lastUsedAt:
           type: string
           format: date-time
@@ -743,11 +784,15 @@ components:
         message:
           type: string
           minLength: 1
-          maxLength: 2048
-          description: 非空；超过 2048 字符进 rejected.reason=INGEST_MESSAGE_TOO_LONG
+          description: |
+            必填，非空。长度上限由服务端配置项 `log.platform.ingestion.max-message-length`
+            决定（默认 2048 字符）；**超长的单条进 `rejected[]`（reason=INGEST_MESSAGE_TOO_LONG），
+            整批仍返回 200**，非 4xx。不在 schema 层声明 maxLength 以避免客户端 schema
+            校验与服务端"软限 + 配置化"语义冲突。
         stackTrace:
           type: string
-          maxLength: 16384
+          description: |
+            长度上限同 `message` 由配置项决定（默认 16384）；超长按单条 rejected 处理。
           nullable: true
         contextData:
           type: string
