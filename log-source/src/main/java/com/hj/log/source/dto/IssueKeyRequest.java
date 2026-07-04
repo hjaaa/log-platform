@@ -9,8 +9,9 @@ import java.time.Instant;
 /** {@code POST /api/v1/apps/{id}/keys} 入参。 */
 public class IssueKeyRequest {
 
+    /** 契约（openapi.yaml Scope）声明大小写不敏感，Service 层经 {@code Scope.fromCode} 转换。 */
     @NotBlank
-    @Pattern(regexp = "write|read")
+    @Pattern(regexp = "write|read", flags = Pattern.Flag.CASE_INSENSITIVE)
     private String scope;
 
     @Size(max = 64)

@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * 全局异常统一出口，落 detailed-design §4.4。
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * <ul>
  *   <li>{@link BusinessException} → 按 {@code httpStatus} 透出 {@code ResponseResult.fail}</li>
  *   <li>{@link MethodArgumentNotValidException} → 400 + 聚合字段错误摘要（不回显堆栈）</li>
+ *   <li>{@link MethodArgumentTypeMismatchException} → 400（枚举等 query 参数绑定失败）</li>
  *   <li>其他 {@link Exception} → 500 + 通用提示（message 会脱敏 {@code lpk_*}，堆栈只进日志）</li>
  * </ul>
  *
@@ -55,6 +57,18 @@ public class GlobalExceptionHandler {
                         .map(fe -> fe.getField() + ":" + fe.getDefaultMessage())
                         .collect(Collectors.joining("; "));
         log.warn("[validation] detail={} requestId={}", detail, MDC.get(REQUEST_ID_KEY));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ResponseResult.fail(ErrorCode.BAD_REQUEST, "请求参数不合法"));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ResponseResult<Void>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex) {
+        log.warn(
+                "[validation] param={} value={} requestId={}",
+                ex.getName(),
+                ex.getValue(),
+                MDC.get(REQUEST_ID_KEY));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ResponseResult.fail(ErrorCode.BAD_REQUEST, "请求参数不合法"));
     }

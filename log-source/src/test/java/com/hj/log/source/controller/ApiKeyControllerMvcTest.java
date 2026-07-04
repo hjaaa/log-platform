@@ -64,6 +64,25 @@ class ApiKeyControllerMvcTest {
     }
 
     @Test
+    void issue_should_accept_uppercase_scope_per_contract() throws Exception {
+        // openapi.yaml Scope 枚举为大写（WRITE/READ），且声明服务端大小写不敏感兼容
+        ApiKeyIssuedView v = new ApiKeyIssuedView();
+        v.setId(34L);
+        v.setAppId(12L);
+        v.setScope("WRITE");
+        when(apiKeyService.issue(eq(12L), any(IssueKeyRequest.class))).thenReturn(v);
+
+        IssueKeyRequest req = new IssueKeyRequest();
+        req.setScope("WRITE");
+
+        mvc.perform(post("/api/v1/apps/12/keys")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scope").value("WRITE"));
+    }
+
+    @Test
     void issue_should_400_on_invalid_scope_pattern() throws Exception {
         IssueKeyRequest req = new IssueKeyRequest();
         req.setScope("admin"); // 控制层 Pattern 已拒绝（write|read）

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.hj.log.common.enums.LogLevel;
 import com.hj.log.common.exception.BusinessException;
 import com.hj.log.common.exception.ErrorCode;
 import jakarta.validation.Valid;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 class GlobalExceptionHandlerTest {
@@ -47,6 +49,17 @@ class GlobalExceptionHandlerTest {
                                 post("/__test__/validate")
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content("{}"))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.code").value(ErrorCode.BAD_REQUEST))
+                        .andExpect(jsonPath("$.message").value("请求参数不合法"))
+                        .andReturn();
+        assertResponseHasNoStackTrace(result);
+    }
+
+    @Test
+    void should_return_400_with_generic_body_when_request_param_type_mismatch() throws Exception {
+        MvcResult result =
+                mvc.perform(get("/__test__/mismatch").param("level", "not-a-level"))
                         .andExpect(status().isBadRequest())
                         .andExpect(jsonPath("$.code").value(ErrorCode.BAD_REQUEST))
                         .andExpect(jsonPath("$.message").value("请求参数不合法"))
@@ -98,6 +111,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/boom")
         public void throwUnknown() {
             throw new RuntimeException("boom lpk_SECRET123");
+        }
+
+        @GetMapping("/mismatch")
+        public String mismatch(@RequestParam LogLevel level) {
+            return level.name();
         }
 
         @PostMapping("/validate")
